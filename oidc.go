@@ -63,6 +63,7 @@ func NewTokenGetter(clientId, clientSecret, issuerUrl string) (*TokenGetter, err
 		IssuerUrl:    issuerUrl,
 		redirectUrl:  "http://localhost:1337/callback",
 		server:       &http.Server{},
+		token:        make(chan *oauth2.Token, 0),
 	}
 	ctx := oidc.ClientContext(context.Background(), &http.Client{})
 	provider, err := oidc.NewProvider(ctx, issuerUrl)
@@ -79,7 +80,7 @@ func (tg *TokenGetter) oauth2Config() *oauth2.Config {
 		ClientSecret: tg.ClientSecret,
 		RedirectURL:  tg.redirectUrl,
 		Endpoint:     tg.provider.Endpoint(),
-		Scopes:       []string{oidc.ScopeOpenID},
+		Scopes:       []string{oidc.ScopeOpenID, "offline_access", "profile", "email"},
 	}
 }
 
@@ -91,11 +92,13 @@ func (tg *TokenGetter) handleCallback(w http.ResponseWriter, r *http.Request) {
 	log.Println(oauth2Token, err)
 	fmt.Fprintln(w, "ok")
 	if err != nil {
-		log.Println("send oauth token to channel")
-		tg.token <- oauth2Token
-	} else {
 		log.Println("send nil token to channel")
 		tg.token <- nil
+		log.Println("sent nil token to channel")
+	} else {
+		log.Println("send oauth token to channel")
+		tg.token <- oauth2Token
+		log.Println("sent oauth token to channel")
 	}
 	go func() {
 		log.Println("Start stop server")
@@ -107,9 +110,12 @@ func (tg *TokenGetter) handleCallback(w http.ResponseWriter, r *http.Request) {
 func (tg *TokenGetter) startServer() {
 	http.HandleFunc("/callback", tg.handleCallback)
 	tg.server.Addr = ":1337"
+	log.Println("start server")
 	if err := tg.server.ListenAndServe(); err != http.ErrServerClosed {
 		log.Println("could not start server")
 		tg.token <- nil
+		log.Println("sent nil token since server could not been started")
+		return
 	}
 	log.Println("stop server")
 }

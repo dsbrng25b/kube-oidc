@@ -42,18 +42,31 @@ func newSetupCommand() *cobra.Command {
 			} else {
 				authInfo.AuthProvider.Config["idp-issuer-url"] = issuerUrl
 				authInfo.AuthProvider.Config["client-id"] = clientId
+				if clientSecret != "" {
+					authInfo.AuthProvider.Config["client-secret"] = clientSecret
+				}
 			}
-			err = setAuthInfo(authInfoName, authInfo)
-			if err != nil {
-				log.Fatal(err)
-			}
-
 			tokenGetter, err := NewTokenGetter(clientId, clientSecret, issuerUrl)
 			if err != nil {
 				log.Fatal(err)
 			}
 			token := tokenGetter.GetToken()
-			log.Println(token)
+
+			id_token, ok := token.Extra("id_token").(string)
+			if !ok {
+				log.Fatal("could not get id token from response")
+			}
+			authInfo.AuthProvider.Config["id-token"] = id_token
+
+			if token.RefreshToken != "" {
+				authInfo.AuthProvider.Config["refresh-token"] = token.RefreshToken
+			}
+
+			err = setAuthInfo(authInfoName, authInfo)
+			if err != nil {
+				log.Fatal(err)
+			}
+
 		},
 	}
 	setupCmd.Flags().StringVar(&clientSecret, "client-secret", "", "client secret to get the token")
