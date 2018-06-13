@@ -34,12 +34,12 @@ func newSetupCommand() *cobra.Command {
 			if err != nil {
 				log.Fatal(err)
 			}
-			if !isOidc(authInfo) {
-				log.Fatal(authInfoName, " already exists but is not of type oidc")
-			}
 			if authInfo == nil {
 				authInfo = NewOidcAuthInfo(clientId, issuerUrl)
 			} else {
+				if !isOidc(authInfo) {
+					log.Fatal(authInfoName, " already exists but is not of type oidc")
+				}
 				authInfo.AuthProvider.Config["idp-issuer-url"] = issuerUrl
 				authInfo.AuthProvider.Config["client-id"] = clientId
 				if clientSecret != "" {
