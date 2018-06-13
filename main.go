@@ -62,6 +62,9 @@ func newSetupCommand() *cobra.Command {
 				log.Fatal(err)
 			}
 			token, err := authHelper.GetToken()
+			if err != nil {
+				log.Fatal(err)
+			}
 
 			id_token, ok := token.Extra("id_token").(string)
 			if !ok {

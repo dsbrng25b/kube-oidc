@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/coreos/go-oidc"
 	"golang.org/x/oauth2"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"os/exec"
@@ -14,10 +15,13 @@ import (
 )
 
 func init() {
+	rand.Seed(time.Now().UnixNano())
 	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 }
 
 const DEFAULT_REDIRECT_URL = "http://127.0.0.1:5555/callback"
+
+var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
 type OidcAuthHelper struct {
 	ClientID          string
@@ -30,6 +34,7 @@ type OidcAuthHelper struct {
 	server            *http.Server
 	provider          *oidc.Provider
 	token             chan *tokenResponse
+	state             string
 }
 
 type tokenResponse struct {
@@ -44,7 +49,8 @@ func NewOidcAuthHelper(clientId, issuerUrl string) (*OidcAuthHelper, error) {
 		Scopes:    []string{oidc.ScopeOpenID, "offline_access", "profile", "email"},
 		server:    &http.Server{},
 		client:    &http.Client{},
-		token:     make(chan *tokenResponse, 0),
+		token:     make(chan *tokenResponse, 1),
+		state:     randString(30),
 	}
 
 	authHelper.SetRedirectUrl(DEFAULT_REDIRECT_URL)
@@ -81,10 +87,10 @@ func (o *OidcAuthHelper) oauth2Config() *oauth2.Config {
 
 func (o *OidcAuthHelper) GetToken() (*oauth2.Token, error) {
 	go o.startServer()
-	if !waitServer(fmt.Sprintf("%s/asdfasfasfas", o.redirectUrl.String())) {
+	if !waitServer(o.redirectUrl.String()) {
 		return nil, fmt.Errorf("failed to start server")
 	}
-	startBrowser(o.oauth2Config().AuthCodeURL("my random state"))
+	startBrowser(o.oauth2Config().AuthCodeURL(o.state))
 	tokenResponse := <-o.token
 	if tokenResponse.err != nil {
 		return nil, tokenResponse.err
@@ -103,13 +109,21 @@ func (o *OidcAuthHelper) startServer() {
 }
 
 func (o *OidcAuthHelper) handleRedirect(w http.ResponseWriter, r *http.Request) {
-	// check if state
+	//do not start token exchange if the request contains the wrong state
+	state := r.URL.Query().Get("state")
+	if state != o.state {
+		fmt.Fprintln(w, "wrong state")
+		return
+	}
 	ctx := oidc.ClientContext(r.Context(), o.client)
 	oauth2Token, err := o.oauth2Config().Exchange(ctx, r.URL.Query().Get("code"))
-	fmt.Fprintln(w, "ok")
 	if err != nil {
 		o.token <- &tokenResponse{nil, err}
+		fmt.Fprintln(w, "token exchange failed: ", err)
 	} else {
+		fmt.Fprintln(w, "access_token: ", oauth2Token.AccessToken)
+		fmt.Fprintln(w, "id_token: ", oauth2Token.Extra("id_token").(string))
+		fmt.Fprintln(w, "refresh_token: ", oauth2Token.RefreshToken)
 		o.token <- &tokenResponse{oauth2Token, nil}
 	}
 	go func() {
@@ -144,4 +158,12 @@ func waitServer(url string) bool {
 		tries--
 	}
 	return false
+}
+
+func randString(n int) string {
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	return string(b)
 }
