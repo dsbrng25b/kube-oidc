@@ -6,7 +6,7 @@ import (
 )
 
 func isOidc(authInfo *api.AuthInfo) bool {
-	if authInfo.AuthProvider != nil && authInfo.AuthProvider.Name == "oidc" {
+	if authInfo != nil && authInfo.AuthProvider != nil && authInfo.AuthProvider.Name == "oidc" {
 		return true
 	}
 	return false
@@ -33,6 +33,17 @@ func setAuthInfo(name string, authInfo *api.AuthInfo) error {
 	config.AuthInfos[name] = authInfo
 
 	return clientcmd.ModifyConfig(loadingRules, *config, false)
+}
+
+type OidcAuthInfo api.AuthInfo
+
+func (o *OidcAuthInfo) SetConfig(key, value string) {
+	o.AuthProvider.Config[key] = value
+}
+
+func (o *OidcAuthInfo) GetConfig(key string) (string, bool) {
+	value, ok := o.AuthProvider.Config[key]
+	return value, ok
 }
 
 func NewOidcAuthInfo(clientId, issuerUrl string) *api.AuthInfo {

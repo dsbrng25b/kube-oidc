@@ -19,11 +19,13 @@ func newSetupCommand() *cobra.Command {
 		clientId     string
 		issuerUrl    string
 		clientSecret string
+		redirectUrl  string
 		noLogin      bool
 	)
 	setupCmd := &cobra.Command{
 		Use:   "setup <name> <client-id> <issuer-url>",
 		Short: "setup kube config",
+		Long:  "writes oidc configuration to kube config",
 		Args:  cobra.ExactArgs(3),
 		Run: func(cmd *cobra.Command, args []string) {
 			authInfoName = args[0]
@@ -46,11 +48,20 @@ func newSetupCommand() *cobra.Command {
 					authInfo.AuthProvider.Config["client-secret"] = clientSecret
 				}
 			}
-			tokenGetter, err := NewTokenGetter(clientId, clientSecret, issuerUrl)
+			authHelper, err := NewOidcAuthHelper(clientId, issuerUrl)
+			if clientSecret != "" {
+				authHelper.ClientSecret = clientSecret
+			}
+			if redirectUrl != "" {
+				err := authHelper.SetRedirectUrl(redirectUrl)
+				if err != nil {
+					log.Fatal("failed to set redirect url: ", err)
+				}
+			}
 			if err != nil {
 				log.Fatal(err)
 			}
-			token := tokenGetter.GetToken()
+			token, err := authHelper.GetToken()
 
 			id_token, ok := token.Extra("id_token").(string)
 			if !ok {
@@ -62,6 +73,9 @@ func newSetupCommand() *cobra.Command {
 				authInfo.AuthProvider.Config["refresh-token"] = token.RefreshToken
 			}
 
+			log.Println("id_token: ", id_token)
+			log.Println("refresh_token: ", token.RefreshToken)
+
 			err = setAuthInfo(authInfoName, authInfo)
 			if err != nil {
 				log.Fatal(err)
@@ -70,6 +84,7 @@ func newSetupCommand() *cobra.Command {
 		},
 	}
 	setupCmd.Flags().StringVar(&clientSecret, "client-secret", "", "client secret to get the token")
+	setupCmd.Flags().StringVar(&redirectUrl, "redirect", "", "url where the server for the callback is started")
 	setupCmd.Flags().BoolVar(&noLogin, "no-login", false, "do only setup the kubeconfig without getting the tokens")
 
 	return setupCmd
