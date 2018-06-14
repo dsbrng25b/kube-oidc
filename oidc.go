@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"github.com/coreos/go-oidc"
 	"golang.org/x/oauth2"
@@ -11,8 +13,16 @@ import (
 	"net/url"
 	"os/exec"
 	"runtime"
+	"strings"
 	"time"
 )
+
+// expiryDelta determines how earlier a token should be considered
+// expired than its actual expiration time. It is used to avoid late
+// expirations due to client-server time mismatches.
+//
+// NOTE(ericchiang): this is take from golang.org/x/oauth2
+const expiryDelta = 10 * time.Second
 
 func init() {
 	rand.Seed(time.Now().UnixNano())
@@ -121,8 +131,13 @@ func (o *OidcAuthHelper) handleRedirect(w http.ResponseWriter, r *http.Request) 
 		o.token <- &tokenResponse{nil, err}
 		fmt.Fprintln(w, "token exchange failed: ", err)
 	} else {
+		var id_token string
+		extra_id_token, ok := oauth2Token.Extra("id_token").(string)
+		if ok {
+			id_token = extra_id_token
+		}
 		fmt.Fprintln(w, "access_token: ", oauth2Token.AccessToken)
-		fmt.Fprintln(w, "id_token: ", oauth2Token.Extra("id_token").(string))
+		fmt.Fprintln(w, "id_token: ", id_token)
 		fmt.Fprintln(w, "refresh_token: ", oauth2Token.RefreshToken)
 		o.token <- &tokenResponse{oauth2Token, nil}
 	}
@@ -166,4 +181,56 @@ func randString(n int) string {
 		b[i] = letterRunes[rand.Intn(len(letterRunes))]
 	}
 	return string(b)
+}
+
+//
+// TODO
+//
+func idTokenExpired(now func() time.Time, idToken string) (bool, error) {
+	parts := strings.Split(idToken, ".")
+	if len(parts) != 3 {
+		return false, fmt.Errorf("ID Token is not a valid JWT")
+	}
+
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return false, err
+	}
+	var claims struct {
+		Expiry jsonTime `json:"exp"`
+	}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return false, fmt.Errorf("parsing claims: %v", err)
+	}
+
+	return now().Add(expiryDelta).Before(time.Time(claims.Expiry)), nil
+}
+
+// jsonTime is a json.Unmarshaler that parses a unix timestamp.
+// Because JSON numbers don't differentiate between ints and floats,
+// we want to ensure we can parse either.
+type jsonTime time.Time
+
+func (j *jsonTime) UnmarshalJSON(b []byte) error {
+	var n json.Number
+	if err := json.Unmarshal(b, &n); err != nil {
+		return err
+	}
+	var unix int64
+
+	if t, err := n.Int64(); err == nil {
+		unix = t
+	} else {
+		f, err := n.Float64()
+		if err != nil {
+			return err
+		}
+		unix = int64(f)
+	}
+	*j = jsonTime(time.Unix(unix, 0))
+	return nil
+}
+
+func (j jsonTime) MarshalJSON() ([]byte, error) {
+	return json.Marshal(time.Time(j).Unix())
 }
