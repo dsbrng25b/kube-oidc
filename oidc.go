@@ -3,12 +3,15 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"github.com/coreos/go-oidc"
 	"golang.org/x/oauth2"
+	"io/ioutil"
 	"math/rand"
+	"net"
 	"net/http"
 	"net/url"
 	"os/exec"
@@ -17,6 +20,10 @@ import (
 	"time"
 )
 
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
+
 // expiryDelta determines how earlier a token should be considered
 // expired than its actual expiration time. It is used to avoid late
 // expirations due to client-server time mismatches.
@@ -24,32 +31,62 @@ import (
 // NOTE(ericchiang): this is take from golang.org/x/oauth2
 const expiryDelta = 10 * time.Second
 
-func init() {
-	rand.Seed(time.Now().UnixNano())
-	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-}
+const defaultRedirectURL = "http://127.0.0.1:5555/callback"
 
-const DEFAULT_REDIRECT_URL = "http://127.0.0.1:5555/callback"
-
-var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+var defaultScopes = []string{oidc.ScopeOpenID}
+var randomLetterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")
 
 type OidcAuthHelperConfig struct {
 	ClientID          string
 	ClientSecret      string
-	IssuerUrl         string
+	IssuerURL         string
 	Scopes            []string
 	CaCertificateFile string
-	RedirectUrl       string
+	RedirectURL       string
+}
+
+func (c *OidcAuthHelperConfig) AuthInfoConfig() map[string]string {
+	var config = map[string]string{}
+	if c.IssuerURL != "" {
+		config["idp-issuer-url"] = c.IssuerURL
+	}
+	if c.ClientID != "" {
+		config["client-id"] = c.ClientID
+	}
+	if c.ClientSecret != "" {
+		config["client-secret"] = c.ClientSecret
+	}
+	if c.CaCertificateFile != "" {
+		config["idp-certificate-authority"] = c.CaCertificateFile
+	}
+	if c.RedirectURL != "" {
+		config["_redirect-url"] = c.RedirectURL
+	}
+	if len(c.Scopes) != 0 {
+		config["_scopes"] = strings.Join(c.Scopes, ",")
+	}
+	return config
+}
+
+func (c *OidcAuthHelperConfig) SetFromAuthInfoConfig(config map[string]string) {
+	c.IssuerURL, _ = config["idp-issuer-url"]
+	c.ClientID, _ = config["client-id"]
+	c.ClientSecret, _ = config["client-secret"]
+	c.CaCertificateFile, _ = config["idp-certificate-authority"]
+	c.RedirectURL, _ = config["_redirect-url"]
+	scopes, ok := config["_scopes"]
+	if ok {
+		c.Scopes = strings.Split(scopes, ",")
+	}
 }
 
 type OidcAuthHelper struct {
 	*OidcAuthHelperConfig
-	redirectUrl *url.URL
-	client      *http.Client
-	server      *http.Server
-	provider    *oidc.Provider
-	token       chan *tokenResponse
-	state       string
+	client   *http.Client
+	server   *http.Server
+	provider *oidc.Provider
+	token    chan *tokenResponse
+	state    string
 }
 
 type tokenResponse struct {
@@ -57,18 +94,43 @@ type tokenResponse struct {
 	err   error
 }
 
-func NewOidcAuthHelper(config OidcAuthHelperConfig) (*OidcAuthHelper, error) {
+func NewOidcAuthHelper(config *OidcAuthHelperConfig) (*OidcAuthHelper, error) {
 	authHelper := &OidcAuthHelper{
-		OidcAuthHellperConfig: config,
-		server:                &http.Server{},
-		client:                &http.Client{},
-		token:                 make(chan *tokenResponse, 1),
-		state:                 randString(30),
+		OidcAuthHelperConfig: config,
+	}
+	authHelper.token = make(chan *tokenResponse, 1)
+	authHelper.state = randString(30)
+
+	// set default values
+	if authHelper.RedirectURL == "" {
+		authHelper.RedirectURL = defaultRedirectURL
 	}
 
-	authHelper.SetRedirectUrl(DEFAULT_REDIRECT_URL)
+	if len(authHelper.Scopes) == 0 {
+		authHelper.Scopes = defaultScopes
+	}
+
+	// initialize http server
+	url, err := url.Parse(authHelper.RedirectURL)
+	if err != nil {
+		return nil, err
+	}
+	handler := http.NewServeMux()
+	handler.HandleFunc(url.Path, authHelper.handleRedirect)
+	authHelper.server = &http.Server{
+		Addr:    url.Host,
+		Handler: handler,
+	}
+
+	// initialize http client
+	authHelper.client, err = authHelper.httpClient()
+	if err != nil {
+		return nil, err
+	}
+
+	// initialize oidc provider
 	ctx := oidc.ClientContext(context.Background(), authHelper.client)
-	provider, err := oidc.NewProvider(ctx, issuerUrl)
+	provider, err := oidc.NewProvider(ctx, authHelper.IssuerURL)
 	if err != nil {
 		return nil, err
 	}
@@ -76,31 +138,9 @@ func NewOidcAuthHelper(config OidcAuthHelperConfig) (*OidcAuthHelper, error) {
 	return authHelper, nil
 }
 
-func (o *OidcAuthHelper) SetRedirectUrl(urlString string) error {
-	url, err := url.Parse(urlString)
-	if err != nil {
-		return err
-	}
-	if url.Scheme != "http" && url.Scheme != "https" {
-		return fmt.Errorf("scheme '%s' not supported", url.Scheme)
-	}
-	o.redirectUrl = url
-	return nil
-}
-
-func (o *OidcAuthHelper) oauth2Config() *oauth2.Config {
-	return &oauth2.Config{
-		ClientID:     o.ClientID,
-		ClientSecret: o.ClientSecret,
-		RedirectURL:  o.redirectUrl.String(),
-		Endpoint:     o.provider.Endpoint(),
-		Scopes:       o.Scopes,
-	}
-}
-
 func (o *OidcAuthHelper) GetToken() (*oauth2.Token, error) {
 	go o.startServer()
-	if !waitServer(o.redirectUrl.String()) {
+	if !waitServer(o.RedirectURL) {
 		return nil, fmt.Errorf("failed to start server")
 	}
 	startBrowser(o.oauth2Config().AuthCodeURL(o.state))
@@ -111,11 +151,43 @@ func (o *OidcAuthHelper) GetToken() (*oauth2.Token, error) {
 	return tokenResponse.token, nil
 }
 
+func (o *OidcAuthHelper) httpClient() (*http.Client, error) {
+	var tlsConfig *tls.Config
+	if o.CaCertificateFile != "" {
+		tlsConfig = &tls.Config{RootCAs: x509.NewCertPool()}
+		rootCABytes, err := ioutil.ReadFile(o.CaCertificateFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read ca file: %v", err)
+		}
+		if !tlsConfig.RootCAs.AppendCertsFromPEM(rootCABytes) {
+			return nil, fmt.Errorf("no certs found in CA file %q", o.CaCertificateFile)
+		}
+	}
+	return &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: tlsConfig,
+			Proxy:           http.ProxyFromEnvironment,
+			Dial: (&net.Dialer{
+				Timeout:   30 * time.Second,
+				KeepAlive: 30 * time.Second,
+			}).Dial,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		},
+	}, nil
+}
+
+func (o *OidcAuthHelper) oauth2Config() *oauth2.Config {
+	return &oauth2.Config{
+		ClientID:     o.ClientID,
+		ClientSecret: o.ClientSecret,
+		RedirectURL:  o.RedirectURL,
+		Endpoint:     o.provider.Endpoint(),
+		Scopes:       o.Scopes,
+	}
+}
+
 func (o *OidcAuthHelper) startServer() {
-
-	o.server.Addr = o.redirectUrl.Host
-	http.HandleFunc(o.redirectUrl.Path, o.handleRedirect)
-
 	if err := o.server.ListenAndServe(); err != http.ErrServerClosed {
 		o.token <- &tokenResponse{nil, err}
 	}
@@ -183,7 +255,7 @@ func waitServer(url string) bool {
 func randString(n int) string {
 	b := make([]rune, n)
 	for i := range b {
-		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+		b[i] = randomLetterRunes[rand.Intn(len(randomLetterRunes))]
 	}
 	return string(b)
 }

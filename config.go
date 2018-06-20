@@ -3,17 +3,14 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"golang.org/x/oauth2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientauth "k8s.io/client-go/pkg/apis/clientauthentication"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 )
 
-var defaultRules *clientcmd.ClientConfigLoadingRules
-
-func init() {
-	defaultRules = clientcmd.NewDefaultClientConfigLoadingRules()
-}
+var defaultRules = clientcmd.NewDefaultClientConfigLoadingRules()
 
 func isOidc(authInfo *api.AuthInfo) bool {
 	if authInfo != nil && authInfo.AuthProvider != nil && authInfo.AuthProvider.Name == "oidc" {
@@ -89,27 +86,49 @@ func createOidcAuthInfo(user string) error {
 }
 
 func oidcAuthHelperFromConfig(user string) (*OidcAuthHelper, error) {
-	config, err := getAuthProviderConfig(user)
+	kubeConfig, err := getAuthProviderConfig(user)
 	if err != nil {
 		return nil, err
 	}
 
-	issuerUrl, ok := config["idp-issuer-url"]
-	if !ok {
-		return nil, fmt.Errorf("idp-issuer-url missing in config")
-	}
-
-	clientId, ok := config["client-id"]
-	if !ok {
-		return nil, fmt.Errorf("client-id missing in config")
-	}
-
-	authHelper, err := NewOidcAuthHelper(clientId, issuerUrl)
+	config := &OidcAuthHelperConfig{}
+	config.SetFromAuthInfoConfig(kubeConfig)
+	authHelper, err := NewOidcAuthHelper(config)
 	if err != nil {
 		return nil, err
 	}
-	authHelper.ClientSecret = config["client-secret"]
 	return authHelper, nil
+}
+
+func updateToken(user string) (*oauth2.Token, error) {
+	authHelper, err := oidcAuthHelperFromConfig(user)
+	if err != nil {
+		return nil, err
+	}
+
+	token, err := authHelper.GetToken()
+	if err != nil {
+		return nil, err
+	}
+
+	id_token, ok := token.Extra("id_token").(string)
+	if !ok {
+		return nil, fmt.Errorf("could not get id token from response")
+	}
+
+	config := map[string]string{
+		"id-token": id_token,
+	}
+
+	if token.RefreshToken != "" {
+		config["refresh-token"] = token.RefreshToken
+	}
+
+	if err := updateAuthProviderConfig(user, config); err != nil {
+		return nil, err
+	}
+
+	return token, nil
 }
 
 func renderExecCredential(token string) {

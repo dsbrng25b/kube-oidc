@@ -17,13 +17,9 @@ func newRootCmd() *cobra.Command {
 
 func newSetupCmd() *cobra.Command {
 	var (
-		user         string
-		clientId     string
-		issuerUrl    string
-		clientSecret string
-		caFile       string
-		redirectUrl  string
-		noLogin      bool
+		config  = &OidcAuthHelperConfig{}
+		user    string
+		noLogin bool
 	)
 	setupCmd := &cobra.Command{
 		Use:   "setup <user> <client-id> <issuer-url>",
@@ -32,8 +28,8 @@ func newSetupCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(3),
 		Run: func(cmd *cobra.Command, args []string) {
 			user = args[0]
-			clientId = args[1]
-			issuerUrl = args[2]
+			config.ClientID = args[1]
+			config.IssuerURL = args[2]
 
 			authInfo, err := getAuthInfo(user)
 
@@ -53,13 +49,7 @@ func newSetupCmd() *cobra.Command {
 				}
 			}
 
-			config := map[string]string{
-				"idp-issuer-url": issuerUrl,
-				"client-id":      clientId,
-			}
-			if clientSecret != "" {
-				config["client-secret"] = clientSecret
-			}
+			config := config.AuthInfoConfig()
 
 			if err := updateAuthProviderConfig(user, config); err != nil {
 				log.Fatal(err)
@@ -69,48 +59,23 @@ func newSetupCmd() *cobra.Command {
 				return
 			}
 
-			authHelper, err := oidcAuthHelperFromConfig(user)
+			// update
+			token, err := updateToken(user)
 			if err != nil {
 				log.Fatal(err)
 			}
 
-			if redirectUrl != "" {
-				err := authHelper.SetRedirectUrl(redirectUrl)
-				if err != nil {
-					log.Fatal("failed to set redirect url: ", err)
-				}
-			}
-
-			token, err := authHelper.GetToken()
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			id_token, ok := token.Extra("id_token").(string)
-			if !ok {
-				log.Fatal("could not get id token from response")
-			}
-
-			config = map[string]string{
-				"id-token": id_token,
-			}
-
-			if token.RefreshToken != "" {
-				config["refresh-token"] = token.RefreshToken
-			}
+			id_token, _ := token.Extra("id_token").(string)
 
 			log.Println("id_token: ", id_token)
 			log.Println("refresh_token: ", token.RefreshToken)
 
-			if err := updateAuthProviderConfig(user, config); err != nil {
-				log.Fatal(err)
-			}
-
 		},
 	}
-	setupCmd.Flags().StringVar(&clientSecret, "client-secret", "", "client secret to get the token")
-	setupCmd.Flags().StringVar(&clientSecret, "ca-file", "", "file with certificate authority")
-	setupCmd.Flags().StringVar(&redirectUrl, "redirect", "", "url where the server for the callback is started")
+	setupCmd.Flags().StringVar(&config.ClientSecret, "client-secret", "", "client secret")
+	setupCmd.Flags().StringVar(&config.CaCertificateFile, "ca-file", "", "file with certificate authority for the idp")
+	setupCmd.Flags().StringVar(&config.RedirectURL, "redirect", "", "url where the server for the callback is started")
+	setupCmd.Flags().StringSliceVar(&config.Scopes, "scope", nil, "a comma-seperated list of scopes to send (e.g offline_access, profile, email, etc.)")
 	setupCmd.Flags().BoolVar(&noLogin, "no-login", false, "do only setup the kubeconfig without getting the tokens")
 
 	return setupCmd
@@ -118,8 +83,7 @@ func newSetupCmd() *cobra.Command {
 
 func newLoginCmd() *cobra.Command {
 	var (
-		user        string
-		redirectUrl string
+		user string
 	)
 	loginCmd := &cobra.Command{
 		Use:   "login [name]",
@@ -128,45 +92,15 @@ func newLoginCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			user = args[0]
-			authHelper, err := oidcAuthHelperFromConfig(user)
+			token, err := updateToken(user)
 			if err != nil {
 				log.Fatal(err)
 			}
-
-			if redirectUrl != "" {
-				err := authHelper.SetRedirectUrl(redirectUrl)
-				if err != nil {
-					log.Fatal("failed to set redirect url: ", err)
-				}
-			}
-
-			token, err := authHelper.GetToken()
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			id_token, ok := token.Extra("id_token").(string)
-			if !ok {
-				log.Fatal("could not get id token from response")
-			}
-
-			config := map[string]string{
-				"id-token": id_token,
-			}
-
-			if token.RefreshToken != "" {
-				config["refresh-token"] = token.RefreshToken
-			}
-
-			log.Println("id_token: ", id_token)
+			idToken, _ := token.Extra("id_token").(string)
+			log.Println("id_token: ", idToken)
 			log.Println("refresh_token: ", token.RefreshToken)
-
-			if err := updateAuthProviderConfig(user, config); err != nil {
-				log.Fatal(err)
-			}
 		},
 	}
-	loginCmd.Flags().StringVar(&redirectUrl, "redirect", "", "url where the server for the callback is started")
 	return loginCmd
 }
 
