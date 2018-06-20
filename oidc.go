@@ -33,7 +33,6 @@ const expiryDelta = 10 * time.Second
 
 const defaultRedirectURL = "http://127.0.0.1:5555/callback"
 
-var defaultScopes = []string{oidc.ScopeOpenID}
 var randomLetterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")
 
 type OidcAuthHelperConfig struct {
@@ -80,6 +79,12 @@ func (c *OidcAuthHelperConfig) SetFromAuthInfoConfig(config map[string]string) {
 	}
 }
 
+func (c *OidcAuthHelperConfig) GetScopes() []string {
+	var scopes = []string{oidc.ScopeOpenID}
+	scopes = append(scopes, c.Scopes...)
+	return scopes
+}
+
 type OidcAuthHelper struct {
 	*OidcAuthHelperConfig
 	client   *http.Client
@@ -104,10 +109,6 @@ func NewOidcAuthHelper(config *OidcAuthHelperConfig) (*OidcAuthHelper, error) {
 	// set default values
 	if authHelper.RedirectURL == "" {
 		authHelper.RedirectURL = defaultRedirectURL
-	}
-
-	if len(authHelper.Scopes) == 0 {
-		authHelper.Scopes = defaultScopes
 	}
 
 	// initialize http server
@@ -183,7 +184,7 @@ func (o *OidcAuthHelper) oauth2Config() *oauth2.Config {
 		ClientSecret: o.ClientSecret,
 		RedirectURL:  o.RedirectURL,
 		Endpoint:     o.provider.Endpoint(),
-		Scopes:       o.Scopes,
+		Scopes:       o.GetScopes(),
 	}
 }
 
