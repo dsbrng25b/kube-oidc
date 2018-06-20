@@ -5,6 +5,7 @@ import (
 	"github.com/spf13/cobra"
 	"log"
 	"os"
+	"time"
 )
 
 func newRootCmd() *cobra.Command {
@@ -120,11 +121,23 @@ func newPluginCmd() *cobra.Command {
 			}
 			fmt.Fprintln(os.Stderr, "exec plugin")
 
-			id_token, ok := config["id-token"]
-			if !ok {
-				log.Fatal("could not get id token")
+			idToken, ok := config["id-token"]
+			if ok {
+				expired, err := idTokenExpired(time.Now, idToken)
+				if err != nil {
+					log.Fatal(err)
+				}
+				if !expired {
+					renderExecCredential(idToken)
+					return
+				}
 			}
-			renderExecCredential(id_token)
+			token, err := updateToken(user)
+			if err != nil {
+				log.Fatal(err)
+			}
+			idToken, _ = token.Extra("id_token").(string)
+			renderExecCredential(idToken)
 		},
 	}
 	return pluginCmd
