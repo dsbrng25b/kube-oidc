@@ -154,6 +154,8 @@ func startBrowser(url string) bool {
 		args = []string{"open"}
 	case "windows":
 		args = []string{"cmd", "/c", "start"}
+		r := strings.NewReplacer("&", "^&")
+		url = r.Replace(url)
 	default:
 		args = []string{"xdg-open"}
 	}
