@@ -33,18 +33,23 @@ const DEFAULT_REDIRECT_URL = "http://127.0.0.1:5555/callback"
 
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
-type OidcAuthHelper struct {
+type OidcAuthHelperConfig struct {
 	ClientID          string
 	ClientSecret      string
 	IssuerUrl         string
 	Scopes            []string
 	CaCertificateFile string
-	redirectUrl       *url.URL
-	client            *http.Client
-	server            *http.Server
-	provider          *oidc.Provider
-	token             chan *tokenResponse
-	state             string
+	RedirectUrl       string
+}
+
+type OidcAuthHelper struct {
+	*OidcAuthHelperConfig
+	redirectUrl *url.URL
+	client      *http.Client
+	server      *http.Server
+	provider    *oidc.Provider
+	token       chan *tokenResponse
+	state       string
 }
 
 type tokenResponse struct {
@@ -52,15 +57,13 @@ type tokenResponse struct {
 	err   error
 }
 
-func NewOidcAuthHelper(clientId, issuerUrl string) (*OidcAuthHelper, error) {
+func NewOidcAuthHelper(config OidcAuthHelperConfig) (*OidcAuthHelper, error) {
 	authHelper := &OidcAuthHelper{
-		ClientID:  clientId,
-		IssuerUrl: issuerUrl,
-		Scopes:    []string{oidc.ScopeOpenID, "offline_access", "profile", "email"},
-		server:    &http.Server{},
-		client:    &http.Client{},
-		token:     make(chan *tokenResponse, 1),
-		state:     randString(30),
+		OidcAuthHellperConfig: config,
+		server:                &http.Server{},
+		client:                &http.Client{},
+		token:                 make(chan *tokenResponse, 1),
+		state:                 randString(30),
 	}
 
 	authHelper.SetRedirectUrl(DEFAULT_REDIRECT_URL)
