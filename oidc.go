@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -261,9 +262,25 @@ func randString(n int) string {
 	return string(b)
 }
 
-//
-// TODO
-//
+func prettyToken(idToken string) (bytes.Buffer, error) {
+	var prettyJson bytes.Buffer
+	parts := strings.Split(idToken, ".")
+	if len(parts) != 3 {
+		return prettyJson, fmt.Errorf("ID Token is not a valid JWT")
+	}
+
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return prettyJson, err
+	}
+
+	err = json.Indent(&prettyJson, []byte(payload), "", "  ")
+	if err != nil {
+		return prettyJson, err
+	}
+	return prettyJson, nil
+}
+
 func idTokenExpired(now func() time.Time, idToken string) (bool, error) {
 	parts := strings.Split(idToken, ".")
 	if len(parts) != 3 {

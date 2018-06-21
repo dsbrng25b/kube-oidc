@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/spf13/cobra"
 	"log"
-	"os"
 	"time"
 )
 
@@ -12,7 +11,12 @@ func newRootCmd() *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use: "kube-oidc",
 	}
-	rootCmd.AddCommand(newSetupCmd(), newLoginCmd(), newPluginCmd())
+	rootCmd.AddCommand(
+		newSetupCmd(),
+		newLoginCmd(),
+		newPluginCmd(),
+		newInfoCmd(),
+	)
 	return rootCmd
 }
 
@@ -119,8 +123,6 @@ func newPluginCmd() *cobra.Command {
 			if err != nil {
 				log.Fatal(err)
 			}
-			fmt.Fprintln(os.Stderr, "exec plugin")
-
 			idToken, ok := config["id-token"]
 			if ok {
 				expired, err := idTokenExpired(time.Now, idToken)
@@ -141,6 +143,36 @@ func newPluginCmd() *cobra.Command {
 		},
 	}
 	return pluginCmd
+}
+
+func newInfoCmd() *cobra.Command {
+	var (
+		user string
+	)
+	infoCmd := &cobra.Command{
+		Use:   "info [user]",
+		Short: "show information of already obtained tokens in kube config",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			user = args[0]
+			config, err := getAuthProviderConfig(user)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			idToken, ok := config["id-token"]
+			if !ok {
+				log.Fatal("no id_token")
+			}
+
+			prettyIdToken, err := prettyToken(idToken)
+			if err != nil {
+				log.Fatal(err)
+			}
+			fmt.Println(prettyIdToken.String())
+		},
+	}
+	return infoCmd
 }
 
 func main() {
