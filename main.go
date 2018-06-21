@@ -56,7 +56,7 @@ func newSetupCmd() *cobra.Command {
 
 			config := config.AuthInfoConfig()
 
-			if err := updateAuthProviderConfig(user, config); err != nil {
+			if err := setAuthProviderConfig(user, config); err != nil {
 				log.Fatal(err)
 			}
 
