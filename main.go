@@ -165,10 +165,17 @@ func newInfoCmd() *cobra.Command {
 				log.Fatal("no id_token")
 			}
 
+			expiryTime, err := getTokenExpiryTime(idToken)
+			if err != nil {
+				log.Fatal(err)
+			}
+			fmt.Println("expires: ", expiryTime)
+
 			prettyIdToken, err := prettyToken(idToken)
 			if err != nil {
 				log.Fatal(err)
 			}
+			fmt.Println("claims:")
 			fmt.Println(prettyIdToken.String())
 		},
 	}

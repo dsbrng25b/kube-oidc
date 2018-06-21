@@ -281,24 +281,33 @@ func prettyToken(idToken string) (bytes.Buffer, error) {
 	return prettyJson, nil
 }
 
-func idTokenExpired(now func() time.Time, idToken string) (bool, error) {
+func getTokenExpiryTime(idToken string) (time.Time, error) {
+	var expiryTime time.Time
 	parts := strings.Split(idToken, ".")
 	if len(parts) != 3 {
-		return false, fmt.Errorf("ID Token is not a valid JWT")
+		return expiryTime, fmt.Errorf("ID Token is not a valid JWT")
 	}
 
 	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
-		return false, err
+		return expiryTime, err
 	}
 	var claims struct {
 		Expiry jsonTime `json:"exp"`
 	}
 	if err := json.Unmarshal(payload, &claims); err != nil {
-		return false, fmt.Errorf("parsing claims: %v", err)
+		return expiryTime, fmt.Errorf("parsing claims: %v", err)
 	}
 
-	return now().Add(expiryDelta).Before(time.Time(claims.Expiry)), nil
+	return time.Time(claims.Expiry), nil
+}
+
+func idTokenExpired(now func() time.Time, idToken string) (bool, error) {
+	expiryTime, err := getTokenExpiryTime(idToken)
+	if err != nil {
+		return false, nil
+	}
+	return now().Add(expiryDelta).Before(expiryTime), nil
 }
 
 // jsonTime is a json.Unmarshaler that parses a unix timestamp.
