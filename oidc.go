@@ -307,7 +307,7 @@ func idTokenExpired(now func() time.Time, idToken string) (bool, error) {
 	if err != nil {
 		return false, nil
 	}
-	return now().Add(expiryDelta).Before(expiryTime), nil
+	return now().Add(expiryDelta).After(expiryTime), nil
 }
 
 // jsonTime is a json.Unmarshaler that parses a unix timestamp.
