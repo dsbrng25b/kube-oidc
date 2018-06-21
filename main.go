@@ -130,7 +130,11 @@ func newPluginCmd() *cobra.Command {
 					log.Fatal(err)
 				}
 				if !expired {
-					renderExecCredential(idToken)
+					credential, err := renderExecCredential(idToken)
+					if err != nil {
+						log.Fatal(err)
+					}
+					fmt.Println(credential)
 					return
 				}
 			}
@@ -139,7 +143,11 @@ func newPluginCmd() *cobra.Command {
 				log.Fatal(err)
 			}
 			idToken, _ = token.Extra("id_token").(string)
-			renderExecCredential(idToken)
+			credential, err := renderExecCredential(idToken)
+			if err != nil {
+				log.Fatal(err)
+			}
+			fmt.Println(credential)
 		},
 	}
 	return pluginCmd

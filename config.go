@@ -12,6 +12,7 @@ import (
 
 var defaultRules = clientcmd.NewDefaultClientConfigLoadingRules()
 
+// check if an AuthInfo uses oidc AuthProvider
 func isOidc(authInfo *api.AuthInfo) bool {
 	if authInfo != nil && authInfo.AuthProvider != nil && authInfo.AuthProvider.Name == "oidc" {
 		return true
@@ -19,6 +20,7 @@ func isOidc(authInfo *api.AuthInfo) bool {
 	return false
 }
 
+// get an AuthInfo by user name
 func getAuthInfo(user string) (*api.AuthInfo, error) {
 	config, err := defaultRules.Load()
 	if err != nil {
@@ -30,6 +32,7 @@ func getAuthInfo(user string) (*api.AuthInfo, error) {
 	return nil, nil
 }
 
+// set an AuthInfo
 func setAuthInfo(user string, authInfo *api.AuthInfo) error {
 	config, err := defaultRules.Load()
 	if err != nil {
@@ -40,6 +43,7 @@ func setAuthInfo(user string, authInfo *api.AuthInfo) error {
 	return clientcmd.ModifyConfig(defaultRules, *config, false)
 }
 
+// get configuration of the AuthProvider from an AuthInfo
 func getAuthProviderConfig(user string) (map[string]string, error) {
 	authInfo, err := getAuthInfo(user)
 	if err != nil {
@@ -52,11 +56,13 @@ func getAuthProviderConfig(user string) (map[string]string, error) {
 	}
 }
 
+// sets configuration of an AuthProvider from an AuthInfo
 func setAuthProviderConfig(user string, config map[string]string) error {
 	persister := clientcmd.PersisterForUser(defaultRules, user)
 	return persister.Persist(config)
 }
 
+// updates AuthProviderConfig (merges with existing configurations)
 func updateAuthProviderConfig(user string, config map[string]string) error {
 	currentConfig, err := getAuthProviderConfig(user)
 	if err != nil {
@@ -69,6 +75,7 @@ func updateAuthProviderConfig(user string, config map[string]string) error {
 	return setAuthProviderConfig(user, currentConfig)
 }
 
+// creates an AuthInfo with oidc configured as AuthProvider
 func createOidcAuthInfo(user string) error {
 	authInfo, err := getAuthInfo(user)
 	if err != nil {
@@ -85,6 +92,7 @@ func createOidcAuthInfo(user string) error {
 	return setAuthInfo(user, authInfo)
 }
 
+// returuns an OidcAuthHelper configured with the config from the AuthProvider
 func oidcAuthHelperFromConfig(user string) (*OidcAuthHelper, error) {
 	kubeConfig, err := getAuthProviderConfig(user)
 	if err != nil {
@@ -100,6 +108,7 @@ func oidcAuthHelperFromConfig(user string) (*OidcAuthHelper, error) {
 	return authHelper, nil
 }
 
+// updates tokens of user in kube config
 func updateToken(user string) (*oauth2.Token, error) {
 	authHelper, err := oidcAuthHelperFromConfig(user)
 	if err != nil {
@@ -131,7 +140,8 @@ func updateToken(user string) (*oauth2.Token, error) {
 	return token, nil
 }
 
-func renderExecCredential(token string) {
+// returns json encoded ExecCredential object as string
+func renderExecCredential(token string) (string, error) {
 	execCredential := &clientauth.ExecCredential{
 		metav1.TypeMeta{
 			Kind:       "ExecCredential",
@@ -144,7 +154,7 @@ func renderExecCredential(token string) {
 	}
 	bytes, err := json.Marshal(execCredential)
 	if err != nil {
-		fmt.Println("error: ", err)
+		return "", err
 	}
-	fmt.Println(string(bytes))
+	return string(bytes), nil
 }
