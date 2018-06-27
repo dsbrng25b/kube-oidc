@@ -60,17 +60,6 @@
   version = "1.1.1"
 
 [[projects]]
-  name = "github.com/modern-go/concurrent"
-  packages = ["."]
-  revision = "bacd9c7ef1dd9b15be4a9909b8ac7a4e313eec94"
-  version = "1.0.3"
-
-[[projects]]
-  name = "github.com/modern-go/reflect2"
-  packages = ["."]
-  revision = "05fbef0ca5da472bbf96c9322b84a53edc03c9fd"
-
-[[projects]]
   branch = "master"
   name = "github.com/pquerna/cachecontrol"
   packages = [
@@ -208,13 +197,11 @@
   version = "kubernetes-1.10.0"
 
 [[projects]]
-  branch = "master"
   name = "k8s.io/apimachinery"
   packages = [
     "pkg/api/errors",
     "pkg/api/resource",
     "pkg/apis/meta/v1",
-    "pkg/apis/meta/v1/unstructured",
     "pkg/conversion",
     "pkg/conversion/queryparams",
     "pkg/fields",
@@ -245,7 +232,8 @@
     "pkg/watch",
     "third_party/forked/golang/reflect"
   ]
-  revision = "ed135c5b96450fd24e5e981c708114fbbd950697"
+  revision = "302974c03f7e50f16561ba237db776ab93594ef6"
+  version = "kubernetes-1.10.0"
 
 [[projects]]
   name = "k8s.io/client-go"
@@ -274,6 +262,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "89837caa0d04533f4ff681bd3c08639bb648f104e2db09ec42b0e61f18d96e5d"
+  inputs-digest = "ba2ed02bfe4ee2662a6f6835fb29b3271ac151125876c1e1b74d37312973ffb2"
   solver-name = "gps-cdcl"
   solver-version = 1
