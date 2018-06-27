@@ -61,23 +61,23 @@ users:
 - name: oidc-plugin
   user:
     exec:
-	  apiVersion: client.authentication.k8s.io/v1alpha1
-	  # refers to $HOME/.kube/bin/kube-oidc
-	  # on windows you have to use backslashes .\bin\kube-oidc.exe
-	  command: "./bin/kube-oidc"
-	  args:
-	  - plugin
-	  - oidc-user
+      apiVersion: client.authentication.k8s.io/v1alpha1
+      # refers to $HOME/.kube/bin/kube-oidc
+      # on windows you have to use backslashes .\bin\kube-oidc.exe
+      command: "./bin/kube-oidc"
+      args:
+      - plugin
+      - oidc-user
 
 # already created by kube-oidc setup
 - name: oidc-user
   user:
     auth-provider:
-	  name: oidc
-	  config:
-	    client-id: kubernetes
-		idp-issuer-url: https://idp.yourcorp.com
-		id-token: <YOUR_ID_TOKEN>
+      name: oidc
+      config:
+        client-id: kubernetes
+        idp-issuer-url: https://idp.yourcorp.com
+        id-token: <YOUR_ID_TOKEN>
 # ...
 ```
 The plugin command then simply returns the id_token of the normal `oidc-user`. If the `oidc-user` does not have an id_token or the id_token has expired, it updates the id_token first (`kube-oidc login oidc-user`).
