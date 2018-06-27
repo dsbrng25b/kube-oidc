@@ -1,4 +1,5 @@
 # kube-oidc
+[![Build Status](https://travis-ci.org/mobiliar/kube-oidc.svg?branch=master)](https://travis-ci.org/mobiliar/kube-oidc)
 
 Kube-oidc helps you to bootstrap the OIDC configuration for users in the `kubectl` configuration (usually `$HOME/.kube/config`).
 It also helps you to refresh the id_token if you don't have a refresh_token or if your refresh_token has expired.
