@@ -7,6 +7,10 @@ import (
 	"time"
 )
 
+var version = "n/a"
+var gitCommit = "n/a"
+var buildTime = "n/a"
+
 func newRootCmd() *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use: "kube-oidc",
@@ -16,6 +20,7 @@ func newRootCmd() *cobra.Command {
 		newLoginCmd(),
 		newPluginCmd(),
 		newInfoCmd(),
+		newVersionCmd(),
 	)
 	return rootCmd
 }
@@ -188,6 +193,19 @@ func newInfoCmd() *cobra.Command {
 		},
 	}
 	return infoCmd
+}
+
+func newVersionCmd() *cobra.Command {
+	versionCmd := &cobra.Command{
+		Use:   "version",
+		Short: "show version and build information",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Println("version:", version)
+			fmt.Println("commit:", gitCommit)
+			fmt.Println("build time:", buildTime)
+		},
+	}
+	return versionCmd
 }
 
 func main() {
