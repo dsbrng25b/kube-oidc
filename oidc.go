@@ -199,23 +199,18 @@ func (o *OidcAuthHelper) handleRedirect(w http.ResponseWriter, r *http.Request) 
 	//do not start token exchange if the request contains the wrong state
 	state := r.URL.Query().Get("state")
 	if state != o.state {
-		fmt.Fprintln(w, "wrong state")
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "wrong state '%s'", state)
 		return
 	}
 	ctx := oidc.ClientContext(r.Context(), o.client)
 	oauth2Token, err := o.oauth2Config().Exchange(ctx, r.URL.Query().Get("code"))
 	if err != nil {
 		o.token <- &tokenResponse{nil, err}
+		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprintln(w, "token exchange failed: ", err)
 	} else {
-		var id_token string
-		extra_id_token, ok := oauth2Token.Extra("id_token").(string)
-		if ok {
-			id_token = extra_id_token
-		}
-		fmt.Fprintln(w, "access_token: ", oauth2Token.AccessToken)
-		fmt.Fprintln(w, "id_token: ", id_token)
-		fmt.Fprintln(w, "refresh_token: ", oauth2Token.RefreshToken)
+		fmt.Fprintln(w, "login successful: you can now safely close this browser window", oauth2Token.RefreshToken)
 		o.token <- &tokenResponse{oauth2Token, nil}
 	}
 	go func() {
