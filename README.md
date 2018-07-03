@@ -62,7 +62,7 @@ users:
 - name: oidc-plugin
   user:
     exec:
-      apiVersion: client.authentication.k8s.io/v1alpha1
+      apiVersion: client.authentication.k8s.io/v1beta1
       # refers to $HOME/.kube/bin/kube-oidc
       # on windows you have to use backslashes .\bin\kube-oidc.exe
       command: "./bin/kube-oidc"
