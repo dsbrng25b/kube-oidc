@@ -53,7 +53,7 @@ func getAuthProviderConfig(user string) (map[string]string, error) {
 	if authInfo != nil && authInfo.AuthProvider != nil && authInfo.AuthProvider.Config != nil {
 		return authInfo.AuthProvider.Config, nil
 	} else {
-		return map[string]string{}, nil
+		return nil, fmt.Errorf("can't get configuration from user '%s'", user)
 	}
 }
 
