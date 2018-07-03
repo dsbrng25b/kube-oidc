@@ -19,6 +19,7 @@ func newRootCmd() *cobra.Command {
 		newSetupCmd(),
 		newLoginCmd(),
 		newPluginCmd(),
+		newPluginSetupCmd(),
 		newInfoCmd(),
 		newVersionCmd(),
 	)
@@ -156,6 +157,40 @@ func newPluginCmd() *cobra.Command {
 		},
 	}
 	return pluginCmd
+}
+
+func newPluginSetupCmd() *cobra.Command {
+	var (
+		pluginUser  string
+		oidcUser    string
+		forceUpdate bool
+	)
+	pluginSetupCmd := &cobra.Command{
+		Use:   "plugin-setup [plugin-user] [oidc-user]",
+		Short: "configures <plugin-user> to use kube-oidc as exec plugin",
+		Long: `the plugin-setup command configures the user <plugin-user> to use the
+kube-oidc as exec plugin. if a user with the name <plugin-user> already exists no
+action is taken unless you use the option force`,
+		Args: cobra.ExactArgs(2),
+		Run: func(cmd *cobra.Command, args []string) {
+			pluginUser = args[0]
+			oidcUser = args[1]
+
+			pluginAuthInfo, err := getAuthInfo(pluginUser)
+			if err != nil {
+				log.Fatal(err)
+			}
+			if pluginAuthInfo != nil && !forceUpdate {
+				log.Fatal("user does already exist. use option --force to overwrite")
+			}
+			err = setupPlugin(pluginUser, oidcUser, "")
+			if err != nil {
+				log.Fatal(err)
+			}
+		},
+	}
+	pluginSetupCmd.Flags().BoolVar(&forceUpdate, "force", false, "overwrite configuration of existing user")
+	return pluginSetupCmd
 }
 
 func newInfoCmd() *cobra.Command {

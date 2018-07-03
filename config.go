@@ -8,6 +8,7 @@ import (
 	clientauth "k8s.io/client-go/pkg/apis/clientauthentication/v1beta1"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
+	"os"
 )
 
 var defaultRules = clientcmd.NewDefaultClientConfigLoadingRules()
@@ -157,4 +158,27 @@ func renderExecCredential(token string) (string, error) {
 		return "", err
 	}
 	return string(bytes), nil
+}
+
+// setup an AuthInfo which uses kube-oidc as exec-based authentication plugin
+func setupPlugin(pluginUser, oidcUser, cmdPath string) error {
+	var err error
+	if cmdPath == "" {
+		cmdPath, err = os.Executable()
+		if err != nil {
+			return fmt.Errorf("could not determine executable: %s", err)
+		}
+	}
+
+	pluginAuthInfo := api.NewAuthInfo()
+	pluginAuthInfo.Exec = &api.ExecConfig{
+		Command: cmdPath,
+		Args: []string{
+			"plugin",
+			oidcUser,
+		},
+		APIVersion: "client.authentication.k8s.io/v1beta1",
+	}
+
+	return setAuthInfo(pluginUser, pluginAuthInfo)
 }
