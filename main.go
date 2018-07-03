@@ -71,16 +71,10 @@ func newSetupCmd() *cobra.Command {
 			}
 
 			// update
-			token, err := updateToken(user)
+			_, err = updateToken(user)
 			if err != nil {
 				log.Fatal(err)
 			}
-
-			id_token, _ := token.Extra("id_token").(string)
-
-			log.Println("id_token: ", id_token)
-			log.Println("refresh_token: ", token.RefreshToken)
-
 		},
 	}
 	setupCmd.Flags().StringVar(&config.ClientSecret, "client-secret", "", "client secret")
@@ -103,13 +97,10 @@ func newLoginCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			user = args[0]
-			token, err := updateToken(user)
+			_, err := updateToken(user)
 			if err != nil {
 				log.Fatal(err)
 			}
-			idToken, _ := token.Extra("id_token").(string)
-			log.Println("id_token: ", idToken)
-			log.Println("refresh_token: ", token.RefreshToken)
 		},
 	}
 	return loginCmd
