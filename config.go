@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"golang.org/x/oauth2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	clientauth "k8s.io/client-go/pkg/apis/clientauthentication/v1beta1"
+	clientauth "k8s.io/client-go/pkg/apis/clientauthentication/v1alpha1"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 	"os"
@@ -146,7 +146,7 @@ func renderExecCredential(token string) (string, error) {
 	execCredential := &clientauth.ExecCredential{
 		metav1.TypeMeta{
 			Kind:       "ExecCredential",
-			APIVersion: "client.authentication.k8s.io/v1beta1",
+			APIVersion: "client.authentication.k8s.io/v1alpha1",
 		},
 		clientauth.ExecCredentialSpec{},
 		&clientauth.ExecCredentialStatus{
@@ -177,7 +177,7 @@ func setupPlugin(pluginUser, oidcUser, cmdPath string) error {
 			"plugin",
 			oidcUser,
 		},
-		APIVersion: "client.authentication.k8s.io/v1beta1",
+		APIVersion: "client.authentication.k8s.io/v1alpha1",
 	}
 
 	return setAuthInfo(pluginUser, pluginAuthInfo)
