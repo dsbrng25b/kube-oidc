@@ -210,7 +210,7 @@ func (o *OidcAuthHelper) handleRedirect(w http.ResponseWriter, r *http.Request) 
 		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprintln(w, "token exchange failed: ", err)
 	} else {
-		fmt.Fprintln(w, "login successful: you can now safely close this browser window", oauth2Token.RefreshToken)
+		fmt.Fprintln(w, "login successful: you can now safely close this browser window")
 		o.token <- &tokenResponse{oauth2Token, nil}
 	}
 	go func() {

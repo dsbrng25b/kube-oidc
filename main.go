@@ -216,6 +216,13 @@ func newInfoCmd() *cobra.Command {
 			}
 			fmt.Println("claims:")
 			fmt.Println(prettyIdToken.String())
+
+			kubectlCmd, err := getConfigCmd(user)
+			if err != nil {
+				log.Fatal(err)
+			}
+			fmt.Println("config command:")
+			fmt.Println(kubectlCmd)
 		},
 	}
 	return infoCmd

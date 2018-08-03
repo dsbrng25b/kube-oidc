@@ -9,6 +9,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 	"os"
+	"strings"
 )
 
 var defaultRules = clientcmd.NewDefaultClientConfigLoadingRules()
@@ -181,4 +182,17 @@ func setupPlugin(pluginUser, oidcUser, cmdPath string) error {
 	}
 
 	return setAuthInfo(pluginUser, pluginAuthInfo)
+}
+
+// get kubectl config command line to make the configuration for a user
+func getConfigCmd(user string) (string, error) {
+	config, err := getAuthProviderConfig(user)
+	if err != nil {
+		return "", err
+	}
+	args := []string{"kubectl", "config", "set-credentials", user, "--auth-provider=oidc"}
+	for key, value := range config {
+		args = append(args, fmt.Sprintf("--auth-provider-arg=%s='%s'", key, strings.Replace(value, "'", "'\"'\"'", -1)))
+	}
+	return strings.Join(args, " "), nil
 }
