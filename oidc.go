@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/url"
 	"os/exec"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -43,11 +44,6 @@ type OidcAuthHelperConfig struct {
 	Scopes            []string
 	CaCertificateFile string
 	RedirectURL       string
-}
-
-type cmdResult struct {
-	Out []byte
-	Err error
 }
 
 func (c *OidcAuthHelperConfig) AuthInfoConfig() map[string]string {
@@ -150,14 +146,13 @@ func (o *OidcAuthHelper) GetToken() (*oauth2.Token, error) {
 	if !waitServer(o.RedirectURL) {
 		return nil, fmt.Errorf("failed to start server")
 	}
-	ch := make(chan cmdResult)
-	go func() { ch <- runBrowser(o.oauth2Config().AuthCodeURL(o.state)) }()
+
+	out, err := startBrowser(o.oauth2Config().AuthCodeURL(o.state))
+	if err != nil {
+		return nil, fmt.Errorf("Browser command finished with error: %v, output: %s", err, out)
+	}
+
 	select {
-	case result := <-ch:
-		if result.Err != nil {
-			return nil, fmt.Errorf("Browser command finished with error: %v, output: %s", result.Err, result.Out)
-		}
-		return nil, fmt.Errorf("Browser command stopped unexpectedly")
 	case tokenResponse := <-o.token:
 		if tokenResponse.err != nil {
 			return nil, tokenResponse.err
@@ -233,10 +228,30 @@ func (o *OidcAuthHelper) handleRedirect(w http.ResponseWriter, r *http.Request) 
 	}()
 }
 
-func runBrowser(url string) cmdResult {
+func isSubsystemForLinux() bool {
+	cmd := exec.Command("uname", "-r")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return false
+	}
+	matched, err := regexp.MatchString("Microsoft", string(out[:]))
+	if err != nil {
+		return false
+	}
+	return matched
+}
+
+func getOs() string {
+	if runtime.GOOS == "linux" && isSubsystemForLinux() {
+		return "windows"
+	}
+	return runtime.GOOS
+}
+
+func startBrowser(url string) ([]byte, error) {
 	// try to start the browser
 	var args []string
-	switch runtime.GOOS {
+	switch getOs() {
 	case "darwin":
 		args = []string{"open"}
 	case "windows":
@@ -247,8 +262,7 @@ func runBrowser(url string) cmdResult {
 		args = []string{"xdg-open"}
 	}
 	cmd := exec.Command(args[0], append(args[1:], url)...)
-	out, err := cmd.CombinedOutput()
-	return cmdResult{out, err}
+	return cmd.CombinedOutput()
 }
 
 func waitServer(url string) bool {
