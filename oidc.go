@@ -45,6 +45,11 @@ type OidcAuthHelperConfig struct {
 	RedirectURL       string
 }
 
+type cmdResult struct {
+	Out []byte
+	Err error
+}
+
 func (c *OidcAuthHelperConfig) AuthInfoConfig() map[string]string {
 	var config = map[string]string{}
 	if c.IssuerURL != "" {
@@ -145,12 +150,22 @@ func (o *OidcAuthHelper) GetToken() (*oauth2.Token, error) {
 	if !waitServer(o.RedirectURL) {
 		return nil, fmt.Errorf("failed to start server")
 	}
-	startBrowser(o.oauth2Config().AuthCodeURL(o.state))
-	tokenResponse := <-o.token
-	if tokenResponse.err != nil {
-		return nil, tokenResponse.err
+	ch := make(chan cmdResult)
+	go func() { ch <- runBrowser(o.oauth2Config().AuthCodeURL(o.state)) }()
+	select {
+	case result := <-ch:
+		if result.Err != nil {
+			return nil, fmt.Errorf("Browser command finished with error: %v, output: %s", result.Err, result.Out)
+		}
+		return nil, fmt.Errorf("Browser command stopped unexpectedly")
+	case tokenResponse := <-o.token:
+		if tokenResponse.err != nil {
+			return nil, tokenResponse.err
+		}
+		return tokenResponse.token, nil
+	case <-time.After(10 * time.Second):
+		return nil, fmt.Errorf("Timeout waiting for token")
 	}
-	return tokenResponse.token, nil
 }
 
 func (o *OidcAuthHelper) httpClient() (*http.Client, error) {
@@ -218,21 +233,22 @@ func (o *OidcAuthHelper) handleRedirect(w http.ResponseWriter, r *http.Request) 
 	}()
 }
 
-func startBrowser(url string) bool {
+func runBrowser(url string) cmdResult {
 	// try to start the browser
 	var args []string
 	switch runtime.GOOS {
 	case "darwin":
 		args = []string{"open"}
 	case "windows":
-		args = []string{"cmd", "/c", "start"}
+		args = []string{"cmd.exe", "/c", "start"}
 		r := strings.NewReplacer("&", "^&")
 		url = r.Replace(url)
 	default:
 		args = []string{"xdg-open"}
 	}
 	cmd := exec.Command(args[0], append(args[1:], url)...)
-	return cmd.Start() == nil
+	out, err := cmd.CombinedOutput()
+	return cmdResult{out, err}
 }
 
 func waitServer(url string) bool {
