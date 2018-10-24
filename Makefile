@@ -14,6 +14,6 @@ build:
 	GOOS=darwin GOARCH=amd64 go build -o ${BINARY_NAME}-darwin ${LDFLAGS} .
 
 clean:
-	rm -f ${BINARY_NAME} ${BINARY_NAME}.exe
+	rm -f ${BINARY_NAME} ${BINARY_NAME}-darwin ${BINARY_NAME}.exe
 
 .PHONY: clean
