@@ -1,6 +1,6 @@
 language: go
 go:
-- 1.10.x
+- 1.11.x
 
 before_install:
 - go get -u github.com/golang/dep/cmd/dep
@@ -10,7 +10,7 @@ script:
 - make
 
 before_deploy:
-- sha256sum kube-oidc kube-oidc.exe > SHASUMS256.txt
+- sha256sum kube-oidc kube-oidc-darwin kube-oidc.exe > SHASUMS256.txt
 
 deploy:
   provider: releases
@@ -18,6 +18,7 @@ deploy:
     secure: "XUTEc07FlUsGLJOCLm2fZeZmHwJ0Xca1u/ioNYUVpOpJPJS5WeCrBwJWXbk4PQYbn5rWlygoif1vxUfLKcIPfDg9wsv4M07VJM1vkYwrBhyELVSORK+7GacXBqXDXraAZOvcUbQcWLRfpfIG/AnPOzDiEU5HLrQm1ZyB6upNfXySXQRZxwk7rv1KJNMoCLYZ81FSyz/PZo6DOYACpL2qWX5jPUv5fUDvRi+Qq3i2qFj8Qx5vQ4nRun19XdpEg7GeOas4GXa/UEn2Wcnyv08C92mqoMzxJ2WStucB5N6YW1mJ8YWYV0cu8VhXjPaiiOoBOdDMNEDt+WQPKo6D9s19quGrZiNlJSRhYS7GUt960VfXgEt9I3IYYYkNncByZkMcj5p3+2ABQFza1tDJvZPQRZtgdiK9TzDqvUJndmOheh0czsBw3Op9qcidxvEI2jl8dwnFIuHx4YiOQXit0pHJZB7PoyAukW1mJEmKyfW+GG4nvjbnDF0ZIwuBAl898CJO6jfzGPEJsEE9ldfc7er+QmHr724KeGckfIIvko1VTLJilKCyIlhAPUGuWvPRpKzOGlnkZZJOSWJunMZsUPFYaZ01NakxTPaxy0FgfzoEc+3gg++Iu7TR8QKkycPq+jARqsCaifd58kzv8cb1YlcQHhR4mD8H8jn9xTKEgvaxgwY="
   file:
   - kube-oidc
+  - kube-oidc-darwin
   - kube-oidc.exe
   - SHASUMS256.txt
   skip_cleanup: true
