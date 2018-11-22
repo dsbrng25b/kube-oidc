@@ -157,6 +157,9 @@ func (o *OidcAuthHelper) GetToken() (*oauth2.Token, error) {
 		if tokenResponse.err != nil {
 			return nil, tokenResponse.err
 		}
+		go func() {
+			o.server.Shutdown(context.Background())
+		}()
 		return tokenResponse.token, nil
 	case <-time.After(10 * time.Second):
 		return nil, fmt.Errorf("Timeout waiting for token")
@@ -214,6 +217,15 @@ func (o *OidcAuthHelper) handleRedirect(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	ctx := oidc.ClientContext(r.Context(), o.client)
+	if _, ok := r.URL.Query()["error"]; ok {
+		errMsg := fmt.Sprintf("failed to get code: %s: %s",
+			r.URL.Query().Get("error"),
+			r.URL.Query().Get("error_description"))
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintln(w, errMsg)
+		o.token <- &tokenResponse{nil, fmt.Errorf(errMsg)}
+		return
+	}
 	oauth2Token, err := o.oauth2Config().Exchange(ctx, r.URL.Query().Get("code"))
 	if err != nil {
 		o.token <- &tokenResponse{nil, err}
@@ -223,9 +235,6 @@ func (o *OidcAuthHelper) handleRedirect(w http.ResponseWriter, r *http.Request) 
 		fmt.Fprintln(w, "login successful: you can now safely close this browser window")
 		o.token <- &tokenResponse{oauth2Token, nil}
 	}
-	go func() {
-		o.server.Shutdown(context.Background())
-	}()
 }
 
 func isSubsystemForLinux() bool {
