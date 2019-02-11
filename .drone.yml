@@ -1,0 +1,23 @@
+kind: pipeline
+name: default
+
+steps:
+- name: build
+  image: golang
+  commands:
+  - make
+
+- name: release
+  image: plugins/github-release
+  settings:
+    api_key:
+      from_secret: github_token
+    files:
+    - kube-oidc
+    - kube-oidc-darwin
+    - kube-oidc.exe
+    checksum:
+    - sha256
+  when:
+    event:
+    - tag
