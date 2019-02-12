@@ -5,7 +5,7 @@ steps:
 - name: build
   image: golang
   environment:
-    GOPROXY: http://athens:3000
+    GOPROXY: http://soubock.ch:3000
   commands:
   - make
 
