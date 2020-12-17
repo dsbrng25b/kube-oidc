@@ -1,4 +1,4 @@
-module github.com/dsbrng25b/kube-oidc
+module github.com/dvob/kube-oidc
 
 require (
 	github.com/coreos/go-oidc v2.0.0+incompatible
